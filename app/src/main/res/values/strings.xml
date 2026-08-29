@@ -3,6 +3,7 @@
     <string name="about">About</string>
     <!-- Button in the Document screen -->
     <string name="add_page">Add page</string>
+    <string name="document">Scan Document</string>
     <!-- Header in the About screen -->
     <string name="app_name" translatable="false">FairScan</string>
     <!--

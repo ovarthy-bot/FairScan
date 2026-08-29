@@ -1,6 +1,7 @@
 <resources>
     <string name="about">Hakkında</string>
     <string name="add_page">Sayfa ekle</string>
+    <string name="document">Taranan Belge</string>
     <string name="app_tagline">Belgelerinizi taramak için basit ve saygılı bir uygulama.</string>
     <string name="apply">Uygula</string>
     <string name="back">Geri</string>

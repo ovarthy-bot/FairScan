@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
@@ -191,6 +192,15 @@ fun AppOverflowMenu(
                     }
                 )
             }
+
+            DropdownMenuItem(
+                leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                text = { Text("Klasörler") },
+                onClick = {
+                    expanded = false
+                    navigation.toFoldersScreen()
+                }
+            )
 
             DropdownMenuItem(
                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },

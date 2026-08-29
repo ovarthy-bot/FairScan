@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
@@ -54,7 +55,7 @@ import org.fairscan.imageprocessing.Quad
 import kotlin.math.min
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class MainViewModel(val imageRepository: ImageRepository, logger: Logger): ViewModel() {
+class MainViewModel(val imageRepository: ImageRepository, val logger: Logger): ViewModel() {
 
     private val _navigationState = MutableStateFlow<NavigationState?>(null)
     val currentScreen: StateFlow<Screen?> = _navigationState.map { it?.current }
@@ -284,6 +285,53 @@ class MainViewModel(val imageRepository: ImageRepository, logger: Logger): ViewM
                 CropInitState.Ready(page.id, bitmap, quad)
             navigateTo(Screen.Main.EditImage)
         }
+    }
 
+    fun shareSinglePageAsPdf(context: android.content.Context, pageIndex: Int, appContainer: AppContainer) {
+        viewModelScope.launch {
+            try {
+                val generatedPdf = withContext(Dispatchers.IO) {
+                    val exportQuality = appContainer.settingsRepository.exportQuality.first()
+                    val allExportPages = org.fairscan.app.domain.pagesToExport(imageRepository, exportQuality)
+                    val pageToExport = allExportPages.getOrNull(pageIndex) ?: return@withContext null
+                    appContainer.fileManager.generatePdf(
+                        pages = listOf(pageToExport),
+                        disableOcr = false,
+                        onProgress = {}
+                    )
+                } ?: return@launch
+
+                val shareFile = generatedPdf.file
+                if (shareFile.exists() && shareFile.length() > 0) {
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        shareFile
+                    )
+                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "application/pdf"
+                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                        clipData = android.content.ClipData.newRawUri(null, uri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    val chooser = android.content.Intent.createChooser(shareIntent, context.getString(R.string.share))
+                    chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    val resolveInfos = context.packageManager.queryIntentActivities(
+                        chooser,
+                        android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+                    )
+                    for (info in resolveInfos) {
+                        context.grantUriPermission(
+                            info.activityInfo.packageName,
+                            uri,
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
+                    context.startActivity(chooser)
+                }
+            } catch (e: Exception) {
+                logger.e("MainViewModel", "Failed to share single page as PDF", e)
+            }
+        }
     }
 }

@@ -71,7 +71,7 @@ android {
             isEnable = !isBuildingBundle
             reset()
             include(*abiCodes.keys.toTypedArray())
-            isUniversalApk = false
+            isUniversalApk = true
         }
     }
     applicationVariants.all {
@@ -79,11 +79,10 @@ android {
         variant.outputs
             .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
             .forEach { output ->
-                val abi = output.getFilter("ABI")
+                val abi = output.getFilter("ABI") ?: "universal"
                 output.outputFileName = "FairScan-${variant.versionName}-${abi}.apk"
             }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -97,6 +96,15 @@ android {
         compose = true
         buildConfig = true
     }
+}
+
+tasks.register<Exec>("installUniversalDebug") {
+    group = "Install"
+    description = "Installs the universal debug APK to the connected device."
+    dependsOn("assembleDebug")
+    val adb = android.adbExecutable.absolutePath
+    val apkFile = layout.buildDirectory.file("outputs/apk/debug/FairScan-2.2.0-universal.apk")
+    commandLine(adb, "install", "-r", apkFile.get().asFile.absolutePath)
 }
 
 apply(from = file("download-tflite.gradle.kts"))
@@ -137,6 +145,10 @@ dependencies {
     implementation(libs.aboutlibraries.compose.m3)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.tesseract4android)
+
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    annotationProcessor(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
     testImplementation(libs.assertj)

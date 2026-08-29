@@ -10,6 +10,12 @@
     <files-path
         name="sources"
         path="sources/" />
+    <files-path
+        name="scanned_documents"
+        path="scanned_documents/" />
+    <files-path
+        name="files_root"
+        path="." />
     <!-- source images, when scanning via Intent (to send the last captured image) -->
     <cache-path
         name="session_sources"

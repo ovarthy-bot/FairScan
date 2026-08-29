@@ -28,6 +28,8 @@ data class ExportUiState(
     val savedBundle: SavedBundle? = null,
     val hasShared: Boolean = false,
     val error: ExportError? = null,
+    val folders: List<org.fairscan.app.data.db.Folder> = emptyList(),
+    val selectedFolderId: Long? = null,
 ) {
     val hasSavedOrShared get() = savedBundle != null || hasShared
 }

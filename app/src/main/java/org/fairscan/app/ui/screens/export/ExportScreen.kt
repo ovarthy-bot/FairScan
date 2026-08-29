@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
@@ -47,7 +49,11 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -144,6 +150,7 @@ fun ExportScreenWrapper(
                 exportActions.save()
             }
         },
+        onSelectFolder = exportActions.selectFolder,
         onOpen = exportActions.open,
         onCloseScan = {
             if (!uiState.isSaving) {
@@ -169,6 +176,7 @@ fun ExportScreen(
     navigation: Navigation,
     onShare: () -> Unit,
     onSave: () -> Unit,
+    onSelectFolder: (Long) -> Unit = {},
     onOpen: (SavedItem) -> Unit,
     onCloseScan: () -> Unit,
 ) {
@@ -194,7 +202,7 @@ fun ExportScreen(
             ) {
                 PdfInfosAndResultBar(uiState, currentDocument, onOpen, onThumbnailClick)
                 Spacer(Modifier.weight(1f)) // push buttons down
-                MainActions(onFilenameChange, uiState, onShare, onSave, onCloseScan)
+                MainActions(onFilenameChange, uiState, onShare, onSave, onSelectFolder, onCloseScan)
             }
         } else {
             Row(
@@ -209,7 +217,7 @@ fun ExportScreen(
                     PdfInfosAndResultBar(uiState, currentDocument, onOpen, onThumbnailClick)
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    MainActions(onFilenameChange, uiState, onShare, onSave, onCloseScan)
+                    MainActions(onFilenameChange, uiState, onShare, onSave, onSelectFolder, onCloseScan)
                 }
             }
 
@@ -380,6 +388,7 @@ private fun MainActions(
     uiState: ExportUiState,
     onShare: () -> Unit,
     onSave: () -> Unit,
+    onSelectFolder: (Long) -> Unit,
     onCloseScan: () -> Unit,
 ) {
     Column(
@@ -387,6 +396,41 @@ private fun MainActions(
     ) {
         ActionSurface {
             FilenameTextField(uiState.filename, onFilenameChange)
+
+            Text(
+                text = "Kaydedilecek Klasör:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (uiState.folders.isNotEmpty()) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(uiState.folders, key = { it.id }) { folder ->
+                        val isSelected = folder.id == uiState.selectedFolderId
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSelectFolder(folder.id) },
+                            label = { Text(folder.name) },
+                            leadingIcon = {
+                                Icon(
+                                    if (isSelected) Icons.Default.FolderOpen else Icons.Default.Folder,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "Tanımlı klasör bulunamadı (Genel arşive kaydedilecek)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -70,6 +70,8 @@ import org.fairscan.app.ui.screens.export.ExportEvent
 import org.fairscan.app.ui.screens.export.ExportResult
 import org.fairscan.app.ui.screens.export.ExportScreenWrapper
 import org.fairscan.app.ui.screens.export.ExportViewModel
+import org.fairscan.app.ui.screens.folders.FoldersScreen
+import org.fairscan.app.ui.screens.folders.FoldersViewModel
 import org.fairscan.app.ui.screens.settings.OcrLanguagesScreen
 import org.fairscan.app.ui.screens.settings.SettingsScreen
 import org.fairscan.app.ui.screens.settings.SettingsUiState
@@ -118,6 +120,8 @@ class MainActivity : ComponentActivity() {
 
         val settingsViewModel: SettingsViewModel
             by viewModels { appContainer.settingsViewModelFactory }
+        val foldersViewModel: FoldersViewModel
+            by viewModels { appContainer.foldersViewModelFactory }
         lifecycleScope.launch(Dispatchers.IO) {
             exportViewModel.cleanUpOldPreparedFiles(1000 * 3600)
         }
@@ -177,9 +181,14 @@ class MainActivity : ComponentActivity() {
                     }
                     is Screen.Main.Camera -> {
                         val pickMultiple = rememberLauncherForActivityResult(
-                            ActivityResultContracts.GetMultipleContents()) {
-                                uris -> cameraViewModel.importPhotos(uris)
+                            ActivityResultContracts.OpenMultipleDocuments()
+                        ) { uris ->
+                            if (uris.isNotEmpty()) {
+                                cameraViewModel.importMedia(uris, contentResolver)
+                            } else {
+                                cameraViewModel.cancelImport()
                             }
+                        }
                         CameraScreen(
                             viewModel,
                             cameraViewModel,
@@ -191,7 +200,11 @@ class MainActivity : ComponentActivity() {
                             cameraPermission = cameraPermission,
                             onImportClicked = {
                                 cameraViewModel.onImportClicked()
-                                pickMultiple.launch("image/*")
+                                try {
+                                    pickMultiple.launch(arrayOf("image/*", "application/pdf"))
+                                } catch (e: Exception) {
+                                    showToast(getString(R.string.error_file_picker_launch))
+                                }
                             }
                         )
                     }
@@ -208,12 +221,15 @@ class MainActivity : ComponentActivity() {
                             uiState = documentUiState,
                             navigation = navigation,
                             onExportClick = onExportClick,
-                            onDeleteImage =  { viewModel.deleteCurrentPage() },
+                            onDeleteImage = { viewModel.deleteCurrentPage() },
                             onRotateImage = { clockwise -> viewModel.rotateCurrentPage(clockwise) },
                             onToggleColorMode = { viewModel.toggleCurrentPageColorMode() },
                             onCropClick = { viewModel.onClickOnCropButton() },
                             onPageReorder = { id, newIndex -> viewModel.movePage(id, newIndex) },
-                            onPageSelected = viewModel::onPageSelected
+                            onPageSelected = viewModel::onPageSelected,
+                            onShareSinglePagePdf = { index ->
+                                viewModel.shareSinglePageAsPdf(this@MainActivity, index, appContainer)
+                            }
                         )
                     }
                     is Screen.Main.Export -> {
@@ -228,6 +244,7 @@ class MainActivity : ComponentActivity() {
                                 save = { exportViewModel.onSaveClicked() },
                                 open = { item -> openUri(item.uri, item.format.mimeType, logger) },
                                 cancelPreparationJob = exportViewModel::cancelPreparationJob,
+                                selectFolder = exportViewModel::selectFolder,
                             ),
                             onCloseScan = {
                                 exportViewModel.resetFilename()
@@ -269,6 +286,19 @@ class MainActivity : ComponentActivity() {
                             onLanguageClick = settingsViewModel::onLanguageClick,
                             onRemoveLanguage = settingsViewModel::onRemoveLanguage,
                             onCancelOcrDownload = settingsViewModel::cancelOcrDownload,
+                        )
+                    }
+                    is Screen.Overlay.Folders -> {
+                        FoldersScreen(
+                            viewModel = foldersViewModel,
+                            onBack = navigation.back,
+                            hasActiveScannedPages = document.pageCount() > 0,
+                            onSaveCurrentScan = { folderId ->
+                                exportViewModel.selectFolder(folderId)
+                                exportViewModel.onSaveClicked()
+                                showToast("Belge klasöre kaydediliyor...")
+                                foldersViewModel.refreshFolders()
+                            }
                         )
                     }
                 }
@@ -513,6 +543,7 @@ class MainActivity : ComponentActivity() {
             }
         },
         toOcrLanguagesScreen = { viewModel.navigateTo(Screen.Overlay.OcrLanguages) },
+        toFoldersScreen = { viewModel.navigateTo(Screen.Overlay.Folders) },
         back = {
             val origin = viewModel.currentScreen.value
             viewModel.navigateBack()

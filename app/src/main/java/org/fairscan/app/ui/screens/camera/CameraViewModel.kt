@@ -14,6 +14,7 @@
  */
 package org.fairscan.app.ui.screens.camera
 
+import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.net.Uri
@@ -34,6 +35,7 @@ import kotlinx.coroutines.withContext
 import org.fairscan.app.AppContainer
 import org.fairscan.app.domain.CapturedPage
 import org.fairscan.app.platform.extractDocumentFromBitmap
+import org.fairscan.app.platform.renderPdfPagesFromUri
 import org.fairscan.imageprocessing.ImageSize
 import org.fairscan.imageprocessing.Mode
 import org.fairscan.imageprocessing.OpticalMeasures
@@ -172,6 +174,22 @@ class CameraViewModel(appContainer: AppContainer): ViewModel() {
         return@withContext result
     }
 
+    private suspend fun processDirectPage(
+        source: Bitmap,
+    ): CapturedPage = withContext(Dispatchers.IO) {
+        val defaultColorMode = settingsRepository.defaultColorMode.first()
+        val result = extractDocumentFromBitmap(
+            source = source,
+            quadInMask = null,
+            rotationDegrees = 0,
+            mask = null,
+            viewModelScope = viewModelScope,
+            defaultColorMode = defaultColorMode,
+            opticalMeasures = null
+        )
+        return@withContext result
+    }
+
     fun addProcessedImage() {
         val current = _captureState.value
         if (current is CaptureState.CapturePreview) {
@@ -194,6 +212,68 @@ class CameraViewModel(appContainer: AppContainer): ViewModel() {
 
     fun setTorchEnabled(enabled: Boolean) {
         _isTorchEnabled.value = enabled
+    }
+
+    fun importMedia(uris: List<Uri>, contentResolver: ContentResolver) {
+        importJob?.cancel()
+        if (uris.isEmpty()) {
+            _importState.value = ImportState.Idle
+            return
+        }
+        importJob = viewModelScope.launch {
+            _importState.value = ImportState.Importing(0, uris.size)
+            val itemsToImport = mutableListOf<Pair<Bitmap, Boolean>>()
+            withContext(Dispatchers.IO) {
+                for (uri in uris) {
+                    val mimeType = contentResolver.getType(uri)
+                    val isPdf = mimeType == "application/pdf" || uri.toString().endsWith(".pdf", ignoreCase = true)
+                    if (isPdf) {
+                        try {
+                            val pdfPages = renderPdfPagesFromUri(contentResolver, uri)
+                            pdfPages.forEach { bitmap ->
+                                itemsToImport.add(Pair(bitmap, true))
+                            }
+                        } catch (e: Exception) {
+                            logger.e("Import", "Failed to import PDF pages: $uri", e)
+                        }
+                    } else {
+                        try {
+                            val bitmap = imageLoader.load(uri)
+                            itemsToImport.add(Pair(bitmap, false))
+                        } catch (e: Exception) {
+                            logger.e("Import", "Failed to load image: $uri", e)
+                        }
+                    }
+                }
+            }
+
+            val totalPages = itemsToImport.size
+            if (totalPages == 0) {
+                _importState.value = ImportState.Idle
+                return@launch
+            }
+
+            _importState.value = ImportState.Importing(0, totalPages)
+            for ((index, item) in itemsToImport.withIndex()) {
+                ensureActive()
+                try {
+                    val (bitmap, isPdf) = item
+                    val page = if (isPdf) {
+                        processDirectPage(bitmap)
+                    } else {
+                        processCapturedImage(bitmap, 0, null, Mode.IMPORT)
+                    }
+                    ensureActive()
+                    _events.emit(CameraEvent.ImageCaptured(page))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.e("Import", "Failed to process imported page", e)
+                }
+                _importState.value = ImportState.Importing(index + 1, totalPages)
+            }
+            _importState.value = ImportState.Idle
+        }
     }
 
     fun importPhotos(uris: List<Uri>) {

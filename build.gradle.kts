@@ -25,3 +25,9 @@ tasks.register("licenseFormatForKotlin", com.hierynomus.gradle.license.tasks.Lic
     source = fileTree(project.projectDir) { include("**/*.kt") }
 }
 tasks["licenseFormat"].dependsOn("licenseFormatForKotlin")
+
+tasks.register("installUniversalDebug") {
+    group = "Install"
+    description = "Installs the universal debug APK from :app module to the connected device."
+    dependsOn(":app:installUniversalDebug")
+}

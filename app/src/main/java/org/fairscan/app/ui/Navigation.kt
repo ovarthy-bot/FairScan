@@ -27,6 +27,7 @@ sealed class Screen {
         object Libraries : Overlay()
         object Settings : Overlay()
         object OcrLanguages : Overlay()
+        object Folders : Overlay()
     }
 }
 
@@ -39,11 +40,11 @@ data class Navigation(
     val toLibrariesScreen: () -> Unit,
     val toSettingsScreen: (() -> Unit)?,
     val toOcrLanguagesScreen: () -> Unit,
+    val toFoldersScreen: () -> Unit,
     val back: () -> Unit,
     val shouldDisplayBackButton: () -> Boolean,
 )
 
-@ConsistentCopyVisibility
 data class NavigationState private constructor(val stack: List<Screen>, val root: Screen.Main) {
 
     companion object {

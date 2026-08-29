@@ -90,3 +90,42 @@ private fun ensureArgb8888(bitmap: Bitmap): Bitmap {
         bitmap
     }
 }
+
+suspend fun renderPdfPagesFromUri(
+    contentResolver: ContentResolver,
+    uri: Uri,
+    maxPixelsPerPage: Int = 12_000_000,
+): List<Bitmap> = withContext(Dispatchers.IO) {
+    val bitmaps = mutableListOf<Bitmap>()
+    try {
+        val pfd = contentResolver.openFileDescriptor(uri, "r") ?: return@withContext bitmaps
+        pfd.use { descriptor ->
+            val renderer = android.graphics.pdf.PdfRenderer(descriptor)
+            renderer.use { pdfRenderer ->
+                val pageCount = pdfRenderer.pageCount
+                for (i in 0 until pageCount) {
+                    val page = pdfRenderer.openPage(i)
+                    val scale = 2.5f
+                    var targetWidth = (page.width * scale).toInt().coerceAtLeast(1)
+                    var targetHeight = (page.height * scale).toInt().coerceAtLeast(1)
+                    val pixels = targetWidth.toLong() * targetHeight.toLong()
+                    if (pixels > maxPixelsPerPage) {
+                        val factor = kotlin.math.sqrt(maxPixelsPerPage.toDouble() / pixels)
+                        targetWidth = (targetWidth * factor).toInt().coerceAtLeast(1)
+                        targetHeight = (targetHeight * factor).toInt().coerceAtLeast(1)
+                    }
+                    val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    canvas.drawColor(android.graphics.Color.WHITE)
+                    page.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    page.close()
+                    bitmaps.add(bitmap)
+                }
+            }
+        }
+    } catch (e: Exception) {
+        // Return whatever pages were decoded
+    }
+    bitmaps
+}
+

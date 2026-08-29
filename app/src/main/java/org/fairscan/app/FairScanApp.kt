@@ -70,6 +70,8 @@ class AppContainer(context: Context) {
     val imageSegmentationService = ImageSegmentationService(context, logger)
     val imageLoader = AndroidImageLoader(context.contentResolver)
     val settingsRepository = SettingsRepository(context, dataStore)
+    val appDatabase = org.fairscan.app.data.db.AppDatabase.getDatabase(context)
+    val virtualFolderRepository = org.fairscan.app.data.VirtualFolderRepository(appDatabase.virtualFolderDao(), context)
 
     init {
         scope.launch { imageSegmentationService.initialize() }
@@ -87,6 +89,7 @@ class AppContainer(context: Context) {
 
     val cameraViewModelFactory = viewModelFactory { CameraViewModel(it) }
     val settingsViewModelFactory = viewModelFactory { SettingsViewModel(it) }
+    val foldersViewModelFactory = viewModelFactory { org.fairscan.app.ui.screens.folders.FoldersViewModel(it) }
 
     fun cleanOrphanSessions() {
         val sessionsRoot = sessionsRoot()

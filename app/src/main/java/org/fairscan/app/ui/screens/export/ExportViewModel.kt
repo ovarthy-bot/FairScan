@@ -71,6 +71,7 @@ class ExportViewModel(container: AppContainer, val imageRepository: ImageReposit
     private val settingsRepository = container.settingsRepository
     private val ocrService = container.ocrService
     private val logger = container.logger
+    private val virtualFolderRepository = container.virtualFolderRepository
 
     private val _events = MutableSharedFlow<ExportEvent>()
     val events = _events.asSharedFlow()
@@ -99,6 +100,36 @@ class ExportViewModel(container: AppContainer, val imageRepository: ImageReposit
 
     private var lastPreparationKey: ExportPreparationKey? = null
     private var preparationJob: Job? = null
+
+    init {
+        refreshFolders()
+    }
+
+    fun refreshFolders() {
+        viewModelScope.launch {
+            val list = virtualFolderRepository.getAllFoldersList()
+            _uiState.update { current ->
+                current.copy(
+                    folders = list,
+                    selectedFolderId = current.selectedFolderId ?: list.firstOrNull()?.id
+                )
+            }
+        }
+    }
+
+    fun selectFolder(folderId: Long) {
+        _uiState.update { it.copy(selectedFolderId = folderId) }
+    }
+
+    fun createFolder(name: String) {
+        viewModelScope.launch {
+            val newId = virtualFolderRepository.createFolder(name)
+            refreshFolders()
+            if (newId > 0) {
+                _uiState.update { it.copy(selectedFolderId = newId) }
+            }
+        }
+    }
 
     fun setFilename(name: String) {
         _uiState.update {
@@ -133,7 +164,9 @@ class ExportViewModel(container: AppContainer, val imageRepository: ImageReposit
         preparationJob?.let {
             // keep result if job is not active
             if (it.isActive) {
-                _uiState.update { ExportUiState() }
+                _uiState.update { current ->
+                    current.copy(result = null, isGenerating = false, progress = null, error = null)
+                }
             }
             it.cancel()
         }
@@ -141,6 +174,7 @@ class ExportViewModel(container: AppContainer, val imageRepository: ImageReposit
 
     fun prepareExportIfNeeded() {
         ensureValidFilename()
+        refreshFolders()
 
         viewModelScope.launch {
             val exportQuality = settingsRepository.exportQuality.first()
@@ -161,12 +195,15 @@ class ExportViewModel(container: AppContainer, val imageRepository: ImageReposit
             preparationJob = launch {
                 val ocrActivation = if (exportFormat == PDF) ocrLanguageString.isNotEmpty() else null
                 _uiState.update {
-                    ExportUiState(
-                        filename = it.filename,
+                    it.copy(
                         format = exportFormat,
                         isGenerating = true,
                         progress = ExportProgress(0, pageCount),
                         ocrActivation = ocrActivation,
+                        result = null,
+                        error = null,
+                        savedBundle = null,
+                        hasShared = false,
                     )
                 }
                 val onProgress: (Int) -> Unit = { completedPages ->
@@ -344,6 +381,35 @@ class ExportViewModel(container: AppContainer, val imageRepository: ImageReposit
         val bundle = SavedBundle(savedItems, saveDir)
         _uiState.update { it.copy(savedBundle = bundle) }
 
+        // Also track document in virtual folder system with extracted OCR text
+        try {
+            val targetFolderId = uiState.value.selectedFolderId ?: virtualFolderRepository.getOrCreateDefaultFolder().id
+            val ocrTextBuilder = StringBuilder()
+            val exportQuality = settingsRepository.exportQuality.first()
+            val exportPages = pagesToExport(imageRepository, exportQuality)
+            for (p in exportPages) {
+                try {
+                    val bitmap = p.jpeg.get().toBitmap()
+                    val textBoxes = ocrService.runOcr(bitmap)
+                    for (box in textBoxes) {
+                        ocrTextBuilder.append(box.text).append(" ")
+                    }
+                } catch (_: Exception) {}
+            }
+            val rawOcrText = ocrTextBuilder.toString().trim()
+
+            for (file in result.files) {
+                virtualFolderRepository.saveDocumentToFolder(
+                    file,
+                    file.nameWithoutExtension,
+                    targetFolderId,
+                    rawOcrText
+                )
+            }
+        } catch (e: Exception) {
+            logger.e("FairScan", "Failed to register document into virtual folder", e)
+        }
+
         filesForMediaScan.forEach { f -> mediaScan(context, f, exportFormat.mimeType) }
     }
 
@@ -464,6 +530,7 @@ data class ExportActions(
     val save: () -> Unit,
     val open: (SavedItem) -> Unit,
     val cancelPreparationJob: () -> Unit,
+    val selectFolder: (Long) -> Unit = {},
 )
 
 class MissingExportDirPermissionException(
