@@ -407,41 +407,7 @@ fun FoldersScreen(
                             }
                         }
 
-                        if (hasActiveScannedPages && onSaveCurrentScan != null) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                                    .clickable { onSaveCurrentScan(currentFolder.id) }
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(12.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Download,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(
-                                            "Taranan Belgeyi Bu Klasöre Kaydet",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                        Text(
-                                            "Mevcut taramayı \"${currentFolder.name}\" klasörüne aktarır",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
+
 
                         if (documents.isEmpty()) {
                             Box(

@@ -57,11 +57,12 @@ class VirtualFolderRepository(
 
     suspend fun getOrCreateDefaultFolder(): Folder = withContext(Dispatchers.IO) {
         val list = dao.getAllFolders()
-        if (list.isNotEmpty()) {
-            list.first()
+        val defaultFolder = list.find { it.name == "Varsayılan Klasör" }
+        if (defaultFolder != null) {
+            defaultFolder
         } else {
-            val id = dao.createFolder(Folder(0L, "Belgelerim", System.currentTimeMillis()))
-            Folder(id, "Belgelerim", System.currentTimeMillis())
+            val id = dao.createFolder(Folder(0L, "Varsayılan Klasör", System.currentTimeMillis()))
+            Folder(id, "Varsayılan Klasör", System.currentTimeMillis())
         }
     }
 

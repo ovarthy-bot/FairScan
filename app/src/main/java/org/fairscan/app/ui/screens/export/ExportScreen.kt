@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +45,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
@@ -89,6 +91,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -202,7 +205,7 @@ fun ExportScreen(
             ) {
                 PdfInfosAndResultBar(uiState, currentDocument, onOpen, onThumbnailClick)
                 Spacer(Modifier.weight(1f)) // push buttons down
-                MainActions(onFilenameChange, uiState, onShare, onSave, onSelectFolder, onCloseScan)
+                MainActions(onFilenameChange, uiState, onShare, onSave, onSelectFolder, onCloseScan, onAddPage = { navigation.back() })
             }
         } else {
             Row(
@@ -217,7 +220,7 @@ fun ExportScreen(
                     PdfInfosAndResultBar(uiState, currentDocument, onOpen, onThumbnailClick)
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    MainActions(onFilenameChange, uiState, onShare, onSave, onSelectFolder, onCloseScan)
+                    MainActions(onFilenameChange, uiState, onShare, onSave, onSelectFolder, onCloseScan, onAddPage = { navigation.back() })
                 }
             }
 
@@ -390,6 +393,7 @@ private fun MainActions(
     onSave: () -> Unit,
     onSelectFolder: (Long) -> Unit,
     onCloseScan: () -> Unit,
+    onAddPage: () -> Unit,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -405,28 +409,47 @@ private fun MainActions(
             )
             if (uiState.folders.isNotEmpty()) {
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(uiState.folders, key = { it.id }) { folder ->
                         val isSelected = folder.id == uiState.selectedFolderId
-                        FilterChip(
-                            selected = isSelected,
+                        Card(
                             onClick = { onSelectFolder(folder.id) },
-                            label = { Text(folder.name) },
-                            leadingIcon = {
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.size(width = 120.dp, height = 80.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
                                 Icon(
-                                    if (isSelected) Icons.Default.FolderOpen else Icons.Default.Folder,
+                                    imageVector = if (isSelected) Icons.Default.FolderOpen else Icons.Default.Folder,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = folder.name,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
-                        )
+                        }
                     }
                 }
             } else {
                 Text(
-                    text = "Tanımlı klasör bulunamadı (Genel arşive kaydedilecek)",
+                    text = "Tanımlı klasör bulunamadı (Varsayılan Klasör'e kaydedilecek)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -455,13 +478,25 @@ private fun MainActions(
                 )
             }
         }
-        ExportButton(
-            icon = Icons.Default.Done,
-            text = stringResource(R.string.scan_new),
-            onClick = onCloseScan,
-            modifier = Modifier.fillMaxWidth(),
-            isPrimary = uiState.hasSavedOrShared,
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            ExportButton(
+                icon = Icons.Default.Add,
+                text = stringResource(R.string.add_page),
+                onClick = onAddPage,
+                modifier = Modifier.weight(1f),
+                isPrimary = false,
+            )
+            ExportButton(
+                icon = Icons.Default.Done,
+                text = stringResource(R.string.scan_new),
+                onClick = onCloseScan,
+                modifier = Modifier.weight(1f),
+                isPrimary = uiState.hasSavedOrShared,
+            )
+        }
     }
 }
 
